@@ -2,7 +2,7 @@
 
 ## Project and working agreement
 
-Build Strong Start's modular grant workspace for CommuniHacks: discover funding, capture official requirements, retrieve organizational evidence, draft and review answers, and transfer approved content into forms. Accuracy, source tracing, meaningful human review, and replaceable knowledge/model adapters are core requirements. The practice-skill generator proposes source-linked instructions and finite policy rules; it cannot grant itself permissions.
+Build Strong Start's modular grant workspace for staff who discover funding, capture official requirements, retrieve organizational evidence, draft and review answers, and transfer approved content into forms. Accuracy, source tracing, meaningful human review, and replaceable knowledge/model adapters are core requirements. The practice-skill generator proposes source-linked instructions and finite policy rules; it cannot grant itself permissions.
 
 The human project owner initializes the repository, scaffold and initial tooling. Work from the actual initialized repo. This supersedes the older plan's initial-bootstrap assignments. Do not reinitialize the project or replace its stack merely to match a proposed folder diagram.
 
@@ -25,6 +25,11 @@ Sawaab owns UI/UX presentation. INT-001 revision 1.1 is one coding agent, sequen
 M0–M4, with direct producer/consumer implementation. DATA-001 revision 1.0 continues
 that single-agent engineering ownership (decision 0006). Decision 0005 supersedes former
 requirements to wait for lane acknowledgment within this task. Retain module owners.
+
+For UI-001, the project owner owns the presentation redesign and its review. The first
+increment is a walkthrough for interested viewers using labeled sample data. This is a
+task-specific update to the historical UI/UX assignment above. See
+[`UI-001`](docs/decisions/UI-001-presentation-workspace.md).
 
 ## Ownership and parallel work
 

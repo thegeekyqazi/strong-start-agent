@@ -60,7 +60,11 @@ function RenderedPreview({
 }) {
   const chars = Array.from(rendered.text)
   const marks = [
-    ...rendered.bindings.map((b) => ({ start: b.span_start, end: b.span_end, fact: b.fact_id })),
+    ...rendered.bindings.map((b) => ({
+      start: b.span_start,
+      end: b.span_end,
+      fact: b.pack_version_id === bundle.pack_version_id ? b.fact_id : null,
+    })),
     ...rendered.unsupported_markers.map((m) => ({
       start: m.span_start,
       end: m.span_end,
@@ -75,16 +79,21 @@ function RenderedPreview({
     const fact = m.fact ? bundle.facts.find((f) => f.fact_id === m.fact) : undefined
     parts.push(
       fact ? (
-        <span
+        <a
           key={m.start}
           className="fact-chip"
+          href={`#evidence-${fact.fact_id}`}
+          onClick={(event) => {
+            event.preventDefault()
+            document.getElementById(`evidence-${fact.fact_id}`)?.focus()
+          }}
           aria-label={`Linked fact ${fact.metric_id}: ${text}, ${
             fact.provenance.is_simulated ? 'simulated' : 'not simulated'
           }, ${factStatusLabel(fact.status).toLowerCase()}`}
         >
           {text} · {fact.provenance.is_simulated ? 'Simulated' : 'Source data'} ·{' '}
           {factStatusLabel(fact.status)}
-        </span>
+        </a>
       ) : (
         <span key={m.start} className="fact-chip fact-chip-unknown">
           {text}
@@ -222,13 +231,17 @@ export function ApplicationsPage({
   client = httpApplicationsClient,
   reviewClient = httpReviewClient,
   questionSets = httpQuestionSetClient,
+  sample = false,
+  initialQuestionId = null,
 }: {
   client?: ApplicationsClient
   reviewClient?: ReviewClient
   questionSets?: QuestionSetClient
+  sample?: boolean
+  initialQuestionId?: string | null
 }) {
   // C2b: an explicit choice between the demo fixture and a Dev B saved question set.
-  const [qsId, setQsId] = useState<string | null>(loadSelectedQuestionSet)
+  const [qsId, setQsId] = useState<string | null>(() => (sample ? null : loadSelectedQuestionSet()))
   const [loaded, setLoaded] = useState<Load>({ kind: 'loading' })
   const [selected, setSelected] = useState<string | null>(null)
   const [texts, setTexts] = useState<Record<string, string>>({})
@@ -255,7 +268,12 @@ export function ApplicationsPage({
       if (!active) return
       if (r.ok) {
         setLoaded({ kind: 'ready', data: r.data, forQs: qsId })
-        setSelected(r.data.question_set.questions[0]?.question_id ?? null)
+        const questions = r.data.question_set.questions
+        setSelected(
+          questions.find((q) => q.question_id === initialQuestionId)?.question_id ??
+            questions[0]?.question_id ??
+            null,
+        )
       } else {
         setLoaded({ kind: 'error', message: describeWorkspaceError(r), forQs: qsId })
       }
@@ -263,7 +281,7 @@ export function ApplicationsPage({
     return () => {
       active = false
     }
-  }, [client, qsId])
+  }, [client, initialQuestionId, qsId])
 
   // A result for a different selection counts as still loading (no stale questions shown).
   const load: Load =
@@ -277,9 +295,10 @@ export function ApplicationsPage({
     setSaveMessage(null)
   }
 
-  const picker = (
+  const picker = !sample && (
     <QuestionSetPicker value={qsId} onChange={chooseQuestionSet} client={questionSets} />
   )
+  const title = sample ? 'Sample application' : 'Applications'
 
   const ws = load.kind === 'ready' ? load.data : null
   const question = ws?.question_set.questions.find((q) => q.question_id === selected) ?? null
@@ -310,14 +329,18 @@ export function ApplicationsPage({
     if (!question || question.question_id in saved) return
     const qid = question.question_id
     reviewClient.history(qid, qsId).then((r) => {
-      setSaved((s) => ({ ...s, [qid]: r.ok ? (r.data.versions.at(-1) ?? null) : null }))
+      const version = r.ok ? (r.data.versions.at(-1) ?? null) : null
+      setSaved((s) => ({ ...s, [qid]: version }))
+      if (sample && version) {
+        setTexts((current) => (qid in current ? current : { ...current, [qid]: version.text }))
+      }
     })
-  }, [reviewClient, question, saved, qsId])
+  }, [reviewClient, question, saved, qsId, sample])
 
   if (load.kind === 'loading')
     return (
       <section aria-labelledby="applications-heading">
-        <h2 id="applications-heading">Applications</h2>
+        <h2 id="applications-heading">{title}</h2>
         {picker}
         <p role="status">Loading the application…</p>
       </section>
@@ -325,7 +348,7 @@ export function ApplicationsPage({
   if (load.kind === 'error' || !ws) {
     return (
       <section aria-labelledby="applications-heading">
-        <h2 id="applications-heading">Applications</h2>
+        <h2 id="applications-heading">{title}</h2>
         {picker}
         <p role="alert">{load.kind === 'error' ? load.message : ''}</p>
         {qsId && (
@@ -342,6 +365,7 @@ export function ApplicationsPage({
   const draft = question ? drafts[question.question_id] : undefined
   const suggestion = question ? pending[question.question_id] : undefined
   const current = question ? checked[question.question_id] : undefined
+  const savedAnswer = question ? saved[question.question_id] : null
   const stale = !!current && (current.text !== text || current.mode !== mode)
   const app01 = current?.report.findings.find((f) => f.result.rule_id === 'APP-01')
 
@@ -384,27 +408,30 @@ export function ApplicationsPage({
   }
 
   return (
-    <section aria-labelledby="applications-heading">
-      <h2 id="applications-heading">Applications</h2>
+    <section aria-labelledby="applications-heading" className="application-page">
+      <h2 id="applications-heading">{title}</h2>
       <p>
-        Draft answers to the funder's questions using your organization's evidence. Drafts are
-        suggestions; nothing here is reviewed or approved.
+        {sample
+          ? 'Read the funder’s question and follow the answer to its evidence.'
+          : 'Draft answers using your organization’s evidence. Save an answer version to send it to Review.'}
       </p>
       {picker}
       {ws.is_fixture && <p className="badge badge-planned">{ws.data_label}</p>}
       {ws.question_set_ref && (
         <p className="hint">
           Saved definition {ws.question_set_ref.definition_id}, version{' '}
-          {ws.question_set_ref.definition_version}: saved, not reviewed or approved by Dev B
+          {ws.question_set_ref.definition_version} · Questions awaiting review
           {ws.question_set_ref.is_fixture ? '; fixture material' : ''}.
         </p>
       )}
-      <div className="plan-actions">
-        <button type="button" onClick={requestPlan}>
-          Plan this application
-        </button>
-        {planError && <p role="alert">{planError}</p>}
-      </div>
+      {!sample && (
+        <div className="plan-actions">
+          <button type="button" onClick={requestPlan}>
+            Plan this application
+          </button>
+          {planError && <p role="alert">{planError}</p>}
+        </div>
+      )}
       {plan && <PlanPanel plan={plan} questions={questions} />}
       <div className="workspace">
         <nav aria-label="Questions" className="ws-questions">
@@ -438,41 +465,39 @@ export function ApplicationsPage({
         <div className="ws-editor">
           {question && (
             <>
-              <h3>Funder's question (original wording)</h3>
-              <blockquote className="original-question">{question.original_text}</blockquote>
+              <header className="question-heading">
+                <p>Funder’s question</p>
+                <blockquote>{question.original_text}</blockquote>
+              </header>
               <p className="hint">
                 {PROVENANCE_LABEL[question.source_refs[0].provenance.provenance_class] ??
                   question.source_refs[0].provenance.provenance_class}
               </p>
               <QuestionNotices question={question} unresolved={ws.unresolved ?? []} />
-              <fieldset className="mode-toggle">
-                <legend>Check mode</legend>
-                <label>
-                  <input
-                    type="radio"
-                    name="mode"
-                    checked={mode === 'working'}
-                    onChange={() => setMode('working')}
-                  />{' '}
-                  Working draft (missing items are allowed and marked)
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="mode"
-                    checked={mode === 'reviewed'}
-                    onChange={() => setMode('reviewed')}
-                  />{' '}
-                  Review check (missing items block review)
-                </label>
-              </fieldset>
-              <p aria-live="polite" className="counter">
-                {app01 && !stale ? app01.message : 'Counting…'}
-              </p>
-              <label htmlFor="answer-editor">Your answer</label>
+              {sample && savedAnswer && (
+                <>
+                  <RenderedPreview
+                    rendered={savedAnswer.rendered}
+                    bundle={bundle}
+                    heading={`Saved draft · Version ${savedAnswer.answer_version}`}
+                  />
+                  <a
+                    className="button-secondary"
+                    href={`#/sample/review?question=${encodeURIComponent(question.question_id)}`}
+                  >
+                    Open in Review
+                  </a>
+                </>
+              )}
+              <div className="answer-toolbar">
+                <label htmlFor="answer-editor">Your answer</label>
+                <p aria-live="polite" className="counter">
+                  {app01 && !stale ? app01.message : 'Counting…'}
+                </p>
+              </div>
               <textarea
                 id="answer-editor"
-                rows={8}
+                rows={5}
                 value={text}
                 onChange={(e) =>
                   setTexts((t) => ({ ...t, [question.question_id]: e.target.value }))
@@ -516,11 +541,11 @@ export function ApplicationsPage({
                 >
                   Save version
                 </button>{' '}
-                {saved[question.question_id] && (
+                {savedAnswer && (
                   <span className="hint">
-                    Latest saved: version {saved[question.question_id]?.answer_version}{' '}
-                    <StatusDot status={saved[question.question_id]!.state} />{' '}
-                    <a href="#/review">Open in Review</a>
+                    Latest saved: version {savedAnswer.answer_version}{' '}
+                    <StatusDot status={savedAnswer.state} />{' '}
+                    {!sample && <a href="#/review">Open in Review</a>}
                   </span>
                 )}
                 {saveMessage && <p role="status">{saveMessage}</p>}
@@ -541,13 +566,37 @@ export function ApplicationsPage({
                   </button>
                 </section>
               )}
-              {current && text.trim() !== '' && !stale && (
-                <RenderedPreview
-                  rendered={current.report.rendered}
-                  bundle={bundle}
-                  heading="Preview with linked facts"
-                />
-              )}
+              {current &&
+                text.trim() !== '' &&
+                !stale &&
+                (!sample || savedAnswer?.text !== text) && (
+                  <RenderedPreview
+                    rendered={current.report.rendered}
+                    bundle={bundle}
+                    heading="Preview with linked facts"
+                  />
+                )}
+              <fieldset className="mode-toggle">
+                <legend>Check mode</legend>
+                <label>
+                  <input
+                    type="radio"
+                    name="mode"
+                    checked={mode === 'working'}
+                    onChange={() => setMode('working')}
+                  />{' '}
+                  Working draft (missing items are allowed and marked)
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="mode"
+                    checked={mode === 'reviewed'}
+                    onChange={() => setMode('reviewed')}
+                  />{' '}
+                  Review check (missing items block review)
+                </label>
+              </fieldset>
               {current && <Findings findings={current.report.findings} stale={stale} />}
               {draft && (
                 <section aria-labelledby="draft-details" className="draft-details">
