@@ -32,6 +32,17 @@ export function saveSelectedQuestionSet(id: string | null): void {
   }
 }
 
+export function workspaceHref(
+  page: 'applications' | 'review',
+  questionSetId?: string | null,
+  questionId?: string | null,
+): string {
+  const query = new URLSearchParams()
+  if (questionSetId) query.set('questionSet', questionSetId)
+  if (questionId) query.set('question', questionId)
+  return query.size ? `#/${page}?${query}` : `#/${page}`
+}
+
 /** Plain-language text for Dev B's unresolved item kinds. */
 export const UNRESOLVED_TEXT: Record<string, string> = {
   unknown_counting_convention: "The funder's counting method is not stated.",

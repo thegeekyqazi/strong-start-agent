@@ -36,9 +36,19 @@ function ModeBadge({ mode }: { mode: string }) {
 }
 
 function Availability({ data }: { data: FundingAvailability }) {
+  const liveReady =
+    data.authenticated &&
+    ['search', 'capture'].every((operation) =>
+      data.providers.some(
+        (provider) =>
+          provider.operation === operation &&
+          provider.mode === 'live' &&
+          provider.status === 'available',
+      ),
+    )
   return (
-    <section aria-labelledby="funding-availability">
-      <h3 id="funding-availability">Availability</h3>
+    <details open={!liveReady || undefined}>
+      <summary>Search and capture services</summary>
       <p>
         {data.authenticated
           ? `Signed in${data.identity_is_fixture ? ' (LOCAL FIXTURE identity)' : ''}.`
@@ -56,7 +66,7 @@ function Availability({ data }: { data: FundingAvailability }) {
         Limits: up to {data.limits.max_results} results, one provider request per operation, no
         automatic retries.
       </p>
-    </section>
+    </details>
   )
 }
 

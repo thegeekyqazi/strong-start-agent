@@ -20,10 +20,12 @@ import {
   httpQuestionSetClient,
   loadSelectedQuestionSet,
   saveSelectedQuestionSet,
+  workspaceHref,
   type QuestionSetClient,
 } from '../applications/questionSets'
 import { describeReviewError, httpReviewClient, type ReviewClient } from './client'
 import { wordDiff } from './diff'
+import { WorkspaceSources } from '../applications/WorkspaceSources'
 import { selectApprovedAnswer } from '../automation/approvedHandoff'
 
 const STALE_REASON: Record<string, string> = {
@@ -69,16 +71,20 @@ export function ReviewPage({
   client = httpReviewClient,
   questionSets = httpQuestionSetClient,
   sample = false,
+  initialQuestionSetId = null,
   initialQuestionId = null,
 }: {
   appClient?: ApplicationsClient
   client?: ReviewClient
   questionSets?: QuestionSetClient
   sample?: boolean
+  initialQuestionSetId?: string | null
   initialQuestionId?: string | null
 }) {
   // C2b: the same explicit question-set choice as the Applications page (shared per tab).
-  const [qsId, setQsId] = useState<string | null>(() => (sample ? null : loadSelectedQuestionSet()))
+  const [qsId, setQsId] = useState<string | null>(() =>
+    sample ? null : (initialQuestionSetId ?? loadSelectedQuestionSet()),
+  )
   const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined)
   const [ws, setWs] = useState<ApplicationWorkspace | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -89,6 +95,7 @@ export function ReviewPage({
   const [note, setNote] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [exported, setExported] = useState<ExportResult | null>(null)
+  const [exportScope, setExportScope] = useState<'application' | 'question'>('application')
 
   useEffect(() => {
     let active = true
@@ -96,6 +103,7 @@ export function ReviewPage({
       if (!active) return
       setLoadedFor(qsId)
       if (r.ok) {
+        if (initialQuestionSetId === qsId && qsId) saveSelectedQuestionSet(qsId)
         setWs(r.data)
         setLoadError(null)
         const questions = r.data.question_set.questions
@@ -113,7 +121,7 @@ export function ReviewPage({
     return () => {
       active = false
     }
-  }, [appClient, initialQuestionId, qsId])
+  }, [appClient, initialQuestionId, initialQuestionSetId, qsId])
 
   function chooseQuestionSet(id: string | null) {
     saveSelectedQuestionSet(id)
@@ -184,11 +192,16 @@ export function ReviewPage({
   const previous = selected
     ? versions.find((v) => v.answer_version === selected.answer_version - 1)
     : undefined
-  const latestApproval = hist?.approvals.find(
+  const latestApproval = history?.approvals.find(
     (a) => a.answer_version_id === latest?.answer_version_id,
   )
-  const anyStale = hist?.approvals.find((a) => a.is_stale)
-  const decided = !!hist?.approvals.find((a) => a.answer_version_id === selected?.answer_version_id)
+  const anyStale = history?.approvals.find((a) => a.is_stale)
+  const decided = !!history?.approvals.find(
+    (a) => a.answer_version_id === selected?.answer_version_id,
+  )
+  const durableStore = history?.store?.durable
+  const temporaryStore =
+    history?.store?.backend === 'memory' || (!history?.store && history?.store_is_fixture)
   const reviewItems =
     selected?.check.findings.filter((f) => f.result.outcome === 'needs_review').length ?? 0
 
@@ -229,7 +242,9 @@ export function ReviewPage({
   }
 
   async function exportAs(mode: 'working' | 'reviewed') {
-    const [first, ...rest] = questions.map((q) => q.question_id)
+    const [first, ...rest] = questions
+      .filter((q) => exportScope === 'application' || q.question_id === questionId)
+      .map((q) => q.question_id)
     if (first === undefined) return // the contract requires at least one question
     const r = await client.exportAnswers({
       mode,
@@ -247,35 +262,21 @@ export function ReviewPage({
         Check exact answer versions, then approve or reject them. An approval covers one exact
         version; any edit or evidence change makes it out of date.
       </p>
-      {sample && (
+      {questionId && (
         <div className="sample-review-context">
-          <span className="badge badge-planned">{ws.data_label}</span>
-          <a href={questionId ? `#/sample?question=${encodeURIComponent(questionId)}` : '#/sample'}>
-            Back to sample application
+          <a
+            href={
+              sample
+                ? `#/sample?question=${encodeURIComponent(questionId)}`
+                : workspaceHref('applications', qsId, questionId)
+            }
+          >
+            Back to application
           </a>
         </div>
       )}
-      {!sample && hist?.store?.durable && (
-        <p className="badge badge-planned">
-          Durable PostgreSQL store – saved C versions, approvals and exports survive API restart.
-          Synthetic data and fixture reviewer labels still apply. Prepare a new Automation plan
-          after restart.
-        </p>
-      )}
-      {!sample &&
-        (hist?.store?.backend === 'memory' || (!hist?.store && hist?.store_is_fixture)) && (
-          <p className="badge badge-planned">
-            FIXTURE store: saved versions and approvals are demo data and are lost on restart.
-            Fixture approval is not authentication.
-          </p>
-        )}
       {picker}
-      {ws.question_set_ref && (
-        <p className="hint">
-          Questions from saved definition {ws.question_set_ref.definition_id}, version{' '}
-          {ws.question_set_ref.definition_version} · Questions awaiting review.
-        </p>
-      )}
+      <WorkspaceSources workspace={ws} />
       <div className="review-question">
         <label htmlFor="review-question">Question</label>
         <select
@@ -293,15 +294,6 @@ export function ReviewPage({
           ))}
         </select>
       </div>
-      {versions.length > 0 && (
-        <p role="status" className="prefill">
-          {hist?.prefill_ready
-            ? 'Ready for prefill: the latest version is approved and current.'
-            : latestApproval
-              ? 'Not ready for prefill: the approval of the latest version no longer applies.'
-              : 'Not ready for prefill: the latest version is not approved.'}
-        </p>
-      )}
       {qsId &&
         loadedFor === qsId &&
         hist?.question_id === questionId &&
@@ -358,10 +350,13 @@ export function ReviewPage({
               <h3>
                 Version {selected.answer_version} <StatusDot status={selected.state} />
               </h3>
-              <p className="draft-meta">
-                <HashChip hash={selected.content_sha256} />
-                <span className="hint">Saved by {selected.created_by}</span>
-              </p>
+              <details className="workspace-sources">
+                <summary>Version details</summary>
+                <p className="draft-meta">
+                  <HashChip hash={selected.content_sha256} />
+                  <span className="hint">Saved by {selected.created_by}</span>
+                </p>
+              </details>
               <blockquote className="original-question review-answer">
                 {selected.rendered.text}
               </blockquote>
@@ -460,6 +455,19 @@ export function ReviewPage({
       )}
       <section aria-labelledby="export-heading" className="export">
         <h3 id="export-heading">Export</h3>
+        <label className="export-scope">
+          Answers to export
+          <select
+            value={exportScope}
+            onChange={(event) => {
+              setExportScope(event.target.value === 'question' ? 'question' : 'application')
+              setExported(null)
+            }}
+          >
+            <option value="application">Whole application</option>
+            <option value="question">Current question only</option>
+          </select>
+        </label>
         <button type="button" onClick={() => exportAs('working')}>
           Export working draft (DOCX)
         </button>{' '}
@@ -493,6 +501,16 @@ export function ReviewPage({
           </div>
         )}
       </section>
+      {!sample && (durableStore || temporaryStore) && (
+        <details className="workspace-sources">
+          <summary>Storage details</summary>
+          <p>
+            {durableStore
+              ? 'Durable PostgreSQL store. Saved versions, approvals and exports survive an API restart. Create a new prefill plan after restarting.'
+              : 'FIXTURE store. Saved versions and approvals are lost on restart. Approvals use the local fixture identity.'}
+          </p>
+        </details>
+      )}
     </section>
   )
 }

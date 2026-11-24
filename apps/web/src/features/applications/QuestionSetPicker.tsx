@@ -21,7 +21,7 @@ export function QuestionSetPicker({
     client.list().then((r) => {
       if (!active) return
       if (r.ok) setItems(r.data.items.filter((d) => d.status === 'ok' && d.question_set_id))
-      else setNote('Saved question sets could not be listed; only the demo questions are offered.')
+      else setNote('Saved question sets could not be loaded.')
     })
     return () => {
       active = false
@@ -37,11 +37,14 @@ export function QuestionSetPicker({
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
       >
-        <option value="">Demo fixture questions (synthetic)</option>
+        <option value="">Example questions · Synthetic</option>
         {items.map((d) => (
           <option key={d.definition_id} value={d.question_set_id ?? ''}>
-            {d.title ?? d.definition_id} (saved definition v{d.current_version}
-            {d.is_fixture ? ', fixture material' : ''})
+            {d.is_fixture && d.title
+              ? d.title.replace(/^FIXTURE:\s*/, '').replace(/\s+\(rep-[\w -]+\)$/, '')
+              : (d.title ?? d.definition_id)}{' '}
+            · v{d.current_version}
+            {d.is_fixture ? ' · Representative' : ''}
           </option>
         ))}
         {!known && value && <option value={value}>Selected set {value}</option>}

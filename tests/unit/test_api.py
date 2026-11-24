@@ -95,6 +95,14 @@ def test_protected_operations_deny_without_identity_provider() -> None:
         assert r.json()["code"] == "unauthenticated"
 
 
+def test_configured_knowledge_capability_matches_feature_status() -> None:
+    c = client(database_url=UNREACHABLE_DB, auth_mode="fixture")
+    caps = {entry["feature"]: entry for entry in c.get("/api/capabilities").json()["capabilities"]}
+    assert caps["knowledge"] == c.get("/api/knowledge/status").json()[0]
+    assert caps["knowledge"]["status"] == "fixture_only"
+    assert caps["knowledge"]["owner"] == "A"
+
+
 def test_fixture_mode_unimplemented_ops_never_fake_success() -> None:
     c = client(auth_mode="fixture")
     for path in UNIMPLEMENTED_OPS:

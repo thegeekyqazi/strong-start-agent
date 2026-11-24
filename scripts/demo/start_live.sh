@@ -16,6 +16,7 @@
 #          DEMO_LOCAL_DATABASE_URL (a 127.0.0.1 database already at migration head).
 #
 # Usage:   scripts/demo/start_live.sh                 # API :18220, web :15290, detached
+#          scripts/demo/start_live.sh --api-only     # prepare data before starting Vite
 #          DEMO_ALLOWED_HOST=<exact tunnel hostname> scripts/demo/start_live.sh --web-only
 #          scripts/demo/stop_live.sh                  # stops only the PIDs recorded here
 # Nothing migrates, seeds, resets or grants here; readiness must already be 200.
@@ -32,7 +33,9 @@ LOG_DIR="$RUN_DIR/logs"
 DB_MODE="${DEMO_DB:-tigerdata}"
 DB_ENV="${DEMO_DB_ENV:-$HOME/.local/share/strongstart-data001-private/hosted.env}"
 WEB_ONLY=0
+API_ONLY=0
 [[ "${1:-}" == "--web-only" ]] && WEB_ONLY=1
+[[ "${1:-}" == "--api-only" ]] && API_ONLY=1
 
 die() { echo "DEMO-LIVE BLOCKER: $*" >&2; exit "${2:-2}"; }
 
@@ -68,7 +71,6 @@ fi
 
 alive "$RUN_DIR/api.pid" && die "API already running (PID $(cat "$RUN_DIR/api.pid")); run stop_live.sh first"
 for port in "$API_PORT" "$WEB_PORT"; do port_busy "$port" && die "port $port is in use"; done
-[[ -f "$ROOT/.env" ]] || die "$ROOT/.env is missing; copy .env.example and fill the live settings privately"
 
 # --- database selection (never silently falls back) -----------------------------------------
 case "$DB_MODE" in
@@ -141,10 +143,13 @@ done
 if [[ "$code" != "200" ]]; then
   curl -s "http://127.0.0.1:$API_PORT/health/ready" >&2 || true
   echo >&2
+  bash scripts/demo/stop_live.sh api >&2
   die "API readiness ${code:-no response}; see $LOG_DIR/api.log. Not migrating or resetting." 3
 fi
 echo "DEMO-LIVE API  http://127.0.0.1:$API_PORT  PID $(cat "$RUN_DIR/api.pid")  ready 200  log $LOG_DIR/api.log"
 echo "  database: $DB_LABEL"
 
-start_web
+if [[ "$API_ONLY" != "1" ]]; then
+  start_web
+fi
 echo "Stop: scripts/demo/stop_live.sh   (fixture identity + synthetic evidence remain labelled)"

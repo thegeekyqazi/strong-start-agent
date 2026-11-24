@@ -41,6 +41,9 @@ INSTRUCTIONS = (
     "You draft one grant answer as a proposal for staff review. Return only JSON with keys "
     "text, fact_ids and uncertainties. Never write numbers in text: reference a figure only "
     "as {{fact:ID}} using an ID from allowed_facts, and list every referenced ID in fact_ids. "
+    "Use each fact only for its recorded reporting period, population and scope. Do not "
+    "reuse historical counts as proposed project targets or future outcomes. Mark a missing "
+    "target as unsupported even if a historical count is available. "
     "If a claim has no evidence, write {{unsupported:short-reason}} instead of inventing it. "
     "Do not include approval, status, permission or decision fields."
 )

@@ -1,5 +1,7 @@
 # Strong Start end-to-end demonstration (E2E-DEMO)
 
+For the local showing, use the [prepared application and live provider launcher](../handoffs/dev-c/ui-002-live-presentation-r1.md).
+
 Restored from `integration/e2e-demo` (`fea5e8a`, PR #22, which merged into the DATA-001
 branch rather than `main`) onto current `main` (C4 merged, migration head
 `0010_practice_skills`). Two launch modes exist:

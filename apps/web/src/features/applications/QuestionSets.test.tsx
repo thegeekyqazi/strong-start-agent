@@ -81,7 +81,7 @@ describe('QuestionSetPicker', () => {
     const chosen: (string | null)[] = []
     render(<QuestionSetPicker value={null} onChange={(id) => chosen.push(id)} client={sets} />)
     const select = screen.getByLabelText('Questions from')
-    await screen.findByText(/Representative portal \(saved definition v1, fixture material\)/)
+    await screen.findByText(/Representative portal · v1 · Representative/)
     expect(screen.getAllByRole('option')).toHaveLength(2) // demo + 1 ok definition
     fireEvent.change(select, { target: { value: QS } })
     fireEvent.change(select, { target: { value: '' } })

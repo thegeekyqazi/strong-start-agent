@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadApiState, type ApiState } from './api'
 import { ApplicationsPage } from './features/applications/Page'
+import { workspaceHref } from './features/applications/questionSets'
 import { FEATURES } from './features/registry'
 import { ReviewPage } from './features/review/Page'
 import { LandingPage } from './LandingPage'
@@ -9,7 +10,7 @@ import { WorkspaceIcon } from './shell/WorkspaceIcon'
 
 const STATUS_LABEL: Record<string, string> = {
   available: 'Available',
-  fixture_only: 'Sample only',
+  fixture_only: 'Local mode',
   not_implemented: 'Coming later',
   unavailable: 'Unavailable',
 }
@@ -48,12 +49,24 @@ export default function App({ load = loadApiState }: { load?: () => Promise<ApiS
 
   const [path, query] = location.split('?', 2)
   const sample = path === 'sample' || path === 'sample/review'
-  const sampleQuestion = sample ? new URLSearchParams(query).get('question') : null
+  const params = new URLSearchParams(query)
+  const questionSetId = sample ? null : params.get('questionSet')
+  const questionId = params.get('question')
+  const selectedWorkspace = sample || questionSetId !== null || questionId !== null
   const featureId = path === 'sample' ? 'applications' : path === 'sample/review' ? 'review' : path
   const isHome = featureId === 'home'
   const feature = FEATURES.find((entry) => entry.id === featureId) ?? FEATURES[0]
   const Page = feature.Component
   const caps = api.kind === 'reachable' ? api.capabilities : null
+  const preparedQuestionSet = import.meta.env.VITE_PRESENTATION_QUESTION_SET_ID
+  const preparedHref =
+    preparedQuestionSet && caps?.fixture_mode !== false
+      ? workspaceHref(
+          'applications',
+          preparedQuestionSet,
+          import.meta.env.VITE_PRESENTATION_QUESTION_ID,
+        )
+      : undefined
   const navigationFeatures = WORKSPACE_ORDER.map((id) => FEATURES.find((entry) => entry.id === id))
 
   return (
@@ -77,7 +90,7 @@ export default function App({ load = loadApiState }: { load?: () => Promise<ApiS
         </a>
         {caps?.fixture_mode && (
           <p className="banner-fixture" role="alert">
-            Sample workspace · Fixture identity
+            Local preview
           </p>
         )}
       </header>
@@ -96,7 +109,9 @@ export default function App({ load = loadApiState }: { load?: () => Promise<ApiS
                 ? '#/sample'
                 : sample && entry.id === 'review'
                   ? '#/sample/review'
-                  : `#/${entry.id}`
+                  : entry.id === 'applications' && preparedHref
+                    ? preparedHref
+                    : `#/${entry.id}`
             return (
               <li key={entry.id}>
                 <a
@@ -115,6 +130,7 @@ export default function App({ load = loadApiState }: { load?: () => Promise<ApiS
             {api.kind === 'unreachable' ? 'Workspace unavailable' : 'Workspace services'}
           </summary>
           <ApiStatus state={api} />
+          {caps?.fixture_mode && <p>Identity uses a local fixture account.</p>}
           <dl>
             {navigationFeatures.map((entry) => {
               if (!entry) return null
@@ -131,11 +147,21 @@ export default function App({ load = loadApiState }: { load?: () => Promise<ApiS
       </nav>
       <main id="main-content" tabIndex={-1} ref={main}>
         {isHome ? (
-          <LandingPage sampleAvailable={caps?.fixture_mode !== false} />
-        ) : path === 'sample' ? (
-          <ApplicationsPage key={location} sample initialQuestionId={sampleQuestion} />
-        ) : path === 'sample/review' ? (
-          <ReviewPage key={location} sample initialQuestionId={sampleQuestion} />
+          <LandingPage sampleAvailable={caps?.fixture_mode !== false} preparedHref={preparedHref} />
+        ) : featureId === 'applications' && selectedWorkspace ? (
+          <ApplicationsPage
+            key={location}
+            sample={sample}
+            initialQuestionSetId={questionSetId}
+            initialQuestionId={questionId}
+          />
+        ) : featureId === 'review' && selectedWorkspace ? (
+          <ReviewPage
+            key={location}
+            sample={sample}
+            initialQuestionSetId={questionSetId}
+            initialQuestionId={questionId}
+          />
         ) : (
           <Page key={feature.id} />
         )}
