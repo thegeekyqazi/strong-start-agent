@@ -31,6 +31,8 @@ def test_presentation_sample_from_home_to_exact_version_review(tmp_path: Path) -
             expect(page.get_by_text("Sample data", exact=True)).to_be_visible()
             page.get_by_role("link", name="Open sample application").click()
             expect(page.get_by_role("heading", name="Sample application")).to_be_visible()
+            expect(page.get_by_text("Representative form · Synthetic evidence")).to_be_visible()
+            page.get_by_text("Representative form · Synthetic evidence").click()
             expect(page.get_by_text(re.compile("synthetic demo-bundle"))).to_be_visible()
 
             page.get_by_role("button", name=re.compile("Describe your services")).click()
@@ -58,9 +60,9 @@ def test_presentation_sample_from_home_to_exact_version_review(tmp_path: Path) -
             expect(
                 fresh.get_by_role("button", name=re.compile("Approve this exact version"))
             ).to_be_visible()
-            expect(
-                fresh.get_by_text("Not ready for prefill: the latest version is not approved.")
-            ).to_be_visible()
+            expect(fresh.get_by_text(re.compile("ready for prefill", re.IGNORECASE))).to_have_count(
+                0
+            )
             assert fresh.evaluate("document.documentElement.scrollWidth === innerWidth")
             assert (
                 page.evaluate("sessionStorage.getItem('strongstart.c.questionSetId')")

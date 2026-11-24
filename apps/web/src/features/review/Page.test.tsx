@@ -156,9 +156,7 @@ describe('Review page', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       /approval of version 1 no longer applies because a newer version was saved/,
     )
-    expect(
-      screen.getByText('Not ready for prefill: the latest version is not approved.'),
-    ).toBeInTheDocument()
+    expect(screen.queryByText(/ready for prefill/i)).not.toBeInTheDocument()
     expect(screen.getByText(/FIXTURE store/)).toBeInTheDocument()
   })
 
@@ -203,7 +201,9 @@ describe('Review page', () => {
       prefill_ready: true,
     })
     render(<ReviewPage appClient={appClient} client={fake(h).client} />)
-    expect(await screen.findByText(/Ready for prefill/)).toBeInTheDocument()
+    const versions = await screen.findByRole('navigation', { name: 'Versions' })
+    expect(within(versions).getByText(/Approved \(this exact version\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/Ready for prefill/)).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Approve this exact version/ }),
     ).not.toBeInTheDocument()

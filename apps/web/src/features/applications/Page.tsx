@@ -31,6 +31,7 @@ import {
 } from './client'
 import { describeReviewError, httpReviewClient, type ReviewClient } from '../review/client'
 import { QuestionSetPicker } from './QuestionSetPicker'
+import { WorkspaceSources } from './WorkspaceSources'
 import {
   httpQuestionSetClient,
   loadSelectedQuestionSet,
@@ -416,14 +417,7 @@ export function ApplicationsPage({
           : 'Draft answers using your organization’s evidence. Save an answer version to send it to Review.'}
       </p>
       {picker}
-      {ws.is_fixture && <p className="badge badge-planned">{ws.data_label}</p>}
-      {ws.question_set_ref && (
-        <p className="hint">
-          Saved definition {ws.question_set_ref.definition_id}, version{' '}
-          {ws.question_set_ref.definition_version} · Questions awaiting review
-          {ws.question_set_ref.is_fixture ? '; fixture material' : ''}.
-        </p>
-      )}
+      <WorkspaceSources workspace={ws} />
       {!sample && (
         <div className="plan-actions">
           <button type="button" onClick={requestPlan}>

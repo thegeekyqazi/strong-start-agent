@@ -24,6 +24,7 @@ import {
 } from '../applications/questionSets'
 import { describeReviewError, httpReviewClient, type ReviewClient } from './client'
 import { wordDiff } from './diff'
+import { WorkspaceSources } from '../applications/WorkspaceSources'
 import { selectApprovedAnswer } from '../automation/approvedHandoff'
 
 const STALE_REASON: Record<string, string> = {
@@ -249,9 +250,8 @@ export function ReviewPage({
       </p>
       {sample && (
         <div className="sample-review-context">
-          <span className="badge badge-planned">{ws.data_label}</span>
           <a href={questionId ? `#/sample?question=${encodeURIComponent(questionId)}` : '#/sample'}>
-            Back to sample application
+            Back to application
           </a>
         </div>
       )}
@@ -270,12 +270,7 @@ export function ReviewPage({
           </p>
         )}
       {picker}
-      {ws.question_set_ref && (
-        <p className="hint">
-          Questions from saved definition {ws.question_set_ref.definition_id}, version{' '}
-          {ws.question_set_ref.definition_version} · Questions awaiting review.
-        </p>
-      )}
+      <WorkspaceSources workspace={ws} />
       <div className="review-question">
         <label htmlFor="review-question">Question</label>
         <select
@@ -293,7 +288,7 @@ export function ReviewPage({
           ))}
         </select>
       </div>
-      {versions.length > 0 && (
+      {qsId && versions.length > 0 && (
         <p role="status" className="prefill">
           {hist?.prefill_ready
             ? 'Ready for prefill: the latest version is approved and current.'

@@ -77,7 +77,7 @@ export default function App({ load = loadApiState }: { load?: () => Promise<ApiS
         </a>
         {caps?.fixture_mode && (
           <p className="banner-fixture" role="alert">
-            Sample workspace · Fixture identity
+            Local preview
           </p>
         )}
       </header>
@@ -115,6 +115,7 @@ export default function App({ load = loadApiState }: { load?: () => Promise<ApiS
             {api.kind === 'unreachable' ? 'Workspace unavailable' : 'Workspace services'}
           </summary>
           <ApiStatus state={api} />
+          {caps?.fixture_mode && <p>Identity uses a local fixture account.</p>}
           <dl>
             {navigationFeatures.map((entry) => {
               if (!entry) return null

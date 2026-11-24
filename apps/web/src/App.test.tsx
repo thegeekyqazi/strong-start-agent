@@ -80,9 +80,7 @@ describe('App shell', () => {
 
   it('labels fixture mode conspicuously', async () => {
     render(<App load={async () => reachable(true, true)} />)
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      /Sample workspace · Fixture identity/,
-    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Local preview/)
   })
 
   it('marks the current feature and keeps the other workspace routes reachable', () => {

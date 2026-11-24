@@ -701,6 +701,20 @@ tbody tr.selected {
   gap: var(--space-sm);
   margin-block: var(--space-md);
 }
+.workspace-sources {
+  width: fit-content;
+  max-width: min(100%, 65ch);
+  margin-block: var(--space-sm);
+  border-top: 0;
+  padding-block: 0;
+  font-size: var(--text-sm);
+}
+.workspace-sources summary {
+  color: var(--color-muted);
+}
+.workspace-sources p {
+  overflow-wrap: anywhere;
+}
 .review-question {
   display: grid;
   gap: var(--space-2xs);
