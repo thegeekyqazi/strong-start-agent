@@ -54,7 +54,10 @@ describe('App shell', () => {
     )
   })
 
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
 
   it('registers every lane feature with its owner', async () => {
     render(<App load={async () => reachable(true)} />)
@@ -120,5 +123,17 @@ describe('App shell', () => {
       '#/applications',
     )
     expect(screen.queryByRole('link', { name: 'Open sample application' })).not.toBeInTheDocument()
+  })
+
+  it('opens a configured presentation through ordinary Applications', async () => {
+    vi.stubEnv('VITE_PRESENTATION_QUESTION_SET_ID', 'saved-questions')
+    vi.stubEnv('VITE_PRESENTATION_QUESTION_ID', 'saved:summary')
+    window.location.hash = ''
+    render(<App load={async () => reachable(true, true)} />)
+
+    expect(await screen.findByRole('link', { name: 'Open application' })).toHaveAttribute(
+      'href',
+      '#/applications?questionSet=saved-questions&question=saved%3Asummary',
+    )
   })
 })

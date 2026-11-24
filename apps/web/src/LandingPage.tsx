@@ -18,7 +18,14 @@ const TRAIL = [
   },
 ]
 
-export function LandingPage({ sampleAvailable }: { sampleAvailable: boolean }) {
+export function LandingPage({
+  sampleAvailable,
+  preparedHref,
+}: {
+  sampleAvailable: boolean
+  preparedHref?: string
+}) {
+  const fixtureEntry = sampleAvailable && !preparedHref
   return (
     <div className="workspace-overview">
       <header className="overview-heading">
@@ -32,19 +39,26 @@ export function LandingPage({ sampleAvailable }: { sampleAvailable: boolean }) {
             <WorkspaceIcon name="applications" />
           </div>
           <h2 id="sample-title">
-            {sampleAvailable ? 'GOS-style grant application' : 'Work on a grant application'}
+            {fixtureEntry ? 'GOS-style grant application' : 'Work on a grant application'}
           </h2>
           <p>
-            {sampleAvailable
+            {fixtureEntry
               ? 'Follow one answer from the funder’s question to a review decision.'
-              : 'Open Applications to choose a saved question set and draft your answers.'}
+              : 'Pick up a draft, check the evidence, and send the answer for review.'}
           </p>
           <div className="sample-actions">
-            <a className="sample-entry" href={sampleAvailable ? '#/sample' : '#/applications'}>
-              {sampleAvailable ? 'Open sample application' : 'Open Applications'}
+            <a
+              className="sample-entry"
+              href={preparedHref ?? (fixtureEntry ? '#/sample' : '#/applications')}
+            >
+              {fixtureEntry
+                ? 'Open sample application'
+                : preparedHref
+                  ? 'Open application'
+                  : 'Open Applications'}
               <WorkspaceIcon name="arrow" />
             </a>
-            {sampleAvailable && <span className="sample-data-label">Sample data</span>}
+            {fixtureEntry && <span className="sample-data-label">Sample data</span>}
           </div>
         </section>
 

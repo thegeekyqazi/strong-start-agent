@@ -183,7 +183,8 @@ describe('Applications workspace', () => {
       ],
     ])
     const chip = await screen.findByLabelText(/Linked fact children-served/)
-    expect(chip).toHaveTextContent(`${RENDERED_FACT} · Simulated · Not yet verified by staff`)
+    expect(chip).toHaveTextContent(`${RENDERED_FACT} · Simulated`)
+    expect(chip).toHaveAccessibleName(/Not yet verified by staff/i)
     expect(screen.getByText(/fixed sample output, not an AI model/)).toBeInTheDocument()
     expect(screen.getByText('Draft – not reviewed')).toBeInTheDocument()
   })

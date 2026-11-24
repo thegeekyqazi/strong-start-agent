@@ -37,6 +37,7 @@ import {
   loadSelectedQuestionSet,
   saveSelectedQuestionSet,
   UNRESOLVED_TEXT,
+  workspaceHref,
   type QuestionSetClient,
 } from './questionSets'
 
@@ -92,8 +93,8 @@ function RenderedPreview({
             fact.provenance.is_simulated ? 'simulated' : 'not simulated'
           }, ${factStatusLabel(fact.status).toLowerCase()}`}
         >
-          {text} · {fact.provenance.is_simulated ? 'Simulated' : 'Source data'} ·{' '}
-          {factStatusLabel(fact.status)}
+          {text}
+          {fact.provenance.is_simulated && ' · Simulated'}
         </a>
       ) : (
         <span key={m.start} className="fact-chip fact-chip-unknown">
@@ -134,10 +135,8 @@ function QuestionNotices({
       ))}
       {conflicts.length === 0 && limit && limit.unit !== 'unknown' && limit.maximum != null && (
         <p>
-          Limit: {limit.maximum} {limit.unit}.{' '}
-          {limit.counting_convention
-            ? `Counting method: ${limit.counting_convention}.`
-            : 'Counting method not confirmed.'}
+          Limit: {limit.maximum} {limit.unit}.
+          {!limit.counting_convention && ' Counting method not confirmed.'}
         </p>
       )}
       {conflicts.length === 0 && limit === null && <p>No limit is stated in the question data.</p>}
@@ -233,16 +232,20 @@ export function ApplicationsPage({
   reviewClient = httpReviewClient,
   questionSets = httpQuestionSetClient,
   sample = false,
+  initialQuestionSetId = null,
   initialQuestionId = null,
 }: {
   client?: ApplicationsClient
   reviewClient?: ReviewClient
   questionSets?: QuestionSetClient
   sample?: boolean
+  initialQuestionSetId?: string | null
   initialQuestionId?: string | null
 }) {
   // C2b: an explicit choice between the demo fixture and a Dev B saved question set.
-  const [qsId, setQsId] = useState<string | null>(() => (sample ? null : loadSelectedQuestionSet()))
+  const [qsId, setQsId] = useState<string | null>(() =>
+    sample ? null : (initialQuestionSetId ?? loadSelectedQuestionSet()),
+  )
   const [loaded, setLoaded] = useState<Load>({ kind: 'loading' })
   const [selected, setSelected] = useState<string | null>(null)
   const [texts, setTexts] = useState<Record<string, string>>({})
@@ -268,6 +271,7 @@ export function ApplicationsPage({
     client.workspace(qsId).then((r) => {
       if (!active) return
       if (r.ok) {
+        if (initialQuestionSetId === qsId && qsId) saveSelectedQuestionSet(qsId)
         setLoaded({ kind: 'ready', data: r.data, forQs: qsId })
         const questions = r.data.question_set.questions
         setSelected(
@@ -282,7 +286,7 @@ export function ApplicationsPage({
     return () => {
       active = false
     }
-  }, [client, initialQuestionId, qsId])
+  }, [client, initialQuestionId, initialQuestionSetId, qsId])
 
   // A result for a different selection counts as still loading (no stale questions shown).
   const load: Load =
@@ -332,11 +336,11 @@ export function ApplicationsPage({
     reviewClient.history(qid, qsId).then((r) => {
       const version = r.ok ? (r.data.versions.at(-1) ?? null) : null
       setSaved((s) => ({ ...s, [qid]: version }))
-      if (sample && version) {
+      if (version) {
         setTexts((current) => (qid in current ? current : { ...current, [qid]: version.text }))
       }
     })
-  }, [reviewClient, question, saved, qsId, sample])
+  }, [reviewClient, question, saved, qsId])
 
   if (load.kind === 'loading')
     return (
@@ -463,12 +467,17 @@ export function ApplicationsPage({
                 <p>Funder’s question</p>
                 <blockquote>{question.original_text}</blockquote>
               </header>
-              <p className="hint">
-                {PROVENANCE_LABEL[question.source_refs[0].provenance.provenance_class] ??
-                  question.source_refs[0].provenance.provenance_class}
-              </p>
+              <details className="workspace-sources">
+                <summary>Question source</summary>
+                <p>
+                  {PROVENANCE_LABEL[question.source_refs[0].provenance.provenance_class] ??
+                    question.source_refs[0].provenance.provenance_class}
+                  {question.limit?.counting_convention &&
+                    ` · Counting method: ${question.limit.counting_convention}`}
+                </p>
+              </details>
               <QuestionNotices question={question} unresolved={ws.unresolved ?? []} />
-              {sample && savedAnswer && (
+              {savedAnswer && (
                 <>
                   <RenderedPreview
                     rendered={savedAnswer.rendered}
@@ -477,146 +486,153 @@ export function ApplicationsPage({
                   />
                   <a
                     className="button-secondary"
-                    href={`#/sample/review?question=${encodeURIComponent(question.question_id)}`}
+                    href={
+                      sample
+                        ? `#/sample/review?question=${encodeURIComponent(question.question_id)}`
+                        : workspaceHref('review', qsId, question.question_id)
+                    }
                   >
                     Open in Review
                   </a>
                 </>
               )}
-              <div className="answer-toolbar">
-                <label htmlFor="answer-editor">Your answer</label>
-                <p aria-live="polite" className="counter">
-                  {app01 && !stale ? app01.message : 'Counting…'}
-                </p>
-              </div>
-              <textarea
-                id="answer-editor"
-                rows={5}
-                value={text}
-                onChange={(e) =>
-                  setTexts((t) => ({ ...t, [question.question_id]: e.target.value }))
-                }
-              />
-              <div className="draft-actions">
-                <button
-                  type="button"
-                  onClick={() => requestDraft(question)}
-                  disabled={busy}
-                  aria-busy={busy}
-                >
-                  {busy ? 'Requesting a draft…' : 'Request a draft'}
-                </button>
-                <p className="hint">
-                  The assistant suggests wording. Figures appear as linked facts, not typed numbers.
-                  You stay in control of the text.
-                </p>
-              </div>
-              {draftError && <p role="alert">{draftError}</p>}
-              <div className="save-version">
-                <button
-                  type="button"
-                  disabled={text.trim() === ''}
-                  onClick={async () => {
-                    setSaveMessage(null)
-                    const latest = saved[question.question_id] ?? null
-                    const r = await reviewClient.saveVersion({
-                      question_id: question.question_id,
-                      question_version: question.question_version,
-                      evidence_bundle_id: bundle.bundle_id,
-                      question_set_id: qsId,
-                      text,
-                      expected_answer_version: latest ? latest.answer_version : null,
-                    })
-                    if (r.ok) {
-                      setSaved((s) => ({ ...s, [question.question_id]: r.data }))
-                      setSaveMessage(`Saved as version ${r.data.answer_version}.`)
-                    } else setSaveMessage(describeReviewError(r))
-                  }}
-                >
-                  Save version
-                </button>{' '}
-                {savedAnswer && (
-                  <span className="hint">
-                    Latest saved: version {savedAnswer.answer_version}{' '}
-                    <StatusDot status={savedAnswer.state} />{' '}
-                    {!sample && <a href="#/review">Open in Review</a>}
-                  </span>
-                )}
-                {saveMessage && <p role="status">{saveMessage}</p>}
-              </div>
-              {suggestion && (
-                <section aria-labelledby="suggested-draft" className="suggestion">
-                  <h4 id="suggested-draft">Suggested draft</h4>
-                  <p>Your answer already has text, so the suggestion was not inserted.</p>
-                  {suggestion.check && (
-                    <RenderedPreview
-                      rendered={suggestion.check.rendered}
-                      bundle={bundle}
-                      heading="Suggestion with linked facts"
-                    />
-                  )}
-                  <button type="button" onClick={() => acceptSuggestion(question, suggestion)}>
-                    Replace my text with this suggestion
+              <details
+                key={question.question_id}
+                className="draft-editor"
+                open={!savedAnswer || savedAnswer.text !== text || undefined}
+              >
+                <summary hidden={!savedAnswer}>Edit draft</summary>
+                <div className="answer-toolbar">
+                  <label htmlFor="answer-editor">Your answer</label>
+                  <p aria-live="polite" className="counter">
+                    {app01 && !stale ? app01.message : 'Counting…'}
+                  </p>
+                </div>
+                <textarea
+                  id="answer-editor"
+                  rows={5}
+                  value={text}
+                  onChange={(e) =>
+                    setTexts((t) => ({ ...t, [question.question_id]: e.target.value }))
+                  }
+                />
+                <div className="draft-actions">
+                  <button
+                    type="button"
+                    onClick={() => requestDraft(question)}
+                    disabled={busy}
+                    aria-busy={busy}
+                  >
+                    {busy ? 'Requesting a draft…' : 'Request a draft'}
                   </button>
-                </section>
-              )}
-              {current &&
-                text.trim() !== '' &&
-                !stale &&
-                (!sample || savedAnswer?.text !== text) && (
+                  <p className="hint">
+                    The assistant suggests wording. Figures appear as linked facts, not typed
+                    numbers. You stay in control of the text.
+                  </p>
+                </div>
+                {draftError && <p role="alert">{draftError}</p>}
+                <div className="save-version">
+                  <button
+                    type="button"
+                    disabled={text.trim() === '' || text === savedAnswer?.text}
+                    onClick={async () => {
+                      setSaveMessage(null)
+                      const latest = saved[question.question_id] ?? null
+                      const r = await reviewClient.saveVersion({
+                        question_id: question.question_id,
+                        question_version: question.question_version,
+                        evidence_bundle_id: bundle.bundle_id,
+                        question_set_id: qsId,
+                        text,
+                        expected_answer_version: latest ? latest.answer_version : null,
+                      })
+                      if (r.ok) {
+                        setSaved((s) => ({ ...s, [question.question_id]: r.data }))
+                        setSaveMessage(`Saved as version ${r.data.answer_version}.`)
+                      } else setSaveMessage(describeReviewError(r))
+                    }}
+                  >
+                    Save version
+                  </button>{' '}
+                  {savedAnswer && (
+                    <span className="hint">
+                      Latest saved: version {savedAnswer.answer_version}{' '}
+                      <StatusDot status={savedAnswer.state} />{' '}
+                    </span>
+                  )}
+                  {saveMessage && <p role="status">{saveMessage}</p>}
+                </div>
+                {suggestion && (
+                  <section aria-labelledby="suggested-draft" className="suggestion">
+                    <h4 id="suggested-draft">Suggested draft</h4>
+                    <p>Your answer already has text, so the suggestion was not inserted.</p>
+                    {suggestion.check && (
+                      <RenderedPreview
+                        rendered={suggestion.check.rendered}
+                        bundle={bundle}
+                        heading="Suggestion with linked facts"
+                      />
+                    )}
+                    <button type="button" onClick={() => acceptSuggestion(question, suggestion)}>
+                      Replace my text with this suggestion
+                    </button>
+                  </section>
+                )}
+                {current && text.trim() !== '' && !stale && savedAnswer?.text !== text && (
                   <RenderedPreview
                     rendered={current.report.rendered}
                     bundle={bundle}
                     heading="Preview with linked facts"
                   />
                 )}
-              <fieldset className="mode-toggle">
-                <legend>Check mode</legend>
-                <label>
-                  <input
-                    type="radio"
-                    name="mode"
-                    checked={mode === 'working'}
-                    onChange={() => setMode('working')}
-                  />{' '}
-                  Working draft (missing items are allowed and marked)
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="mode"
-                    checked={mode === 'reviewed'}
-                    onChange={() => setMode('reviewed')}
-                  />{' '}
-                  Review check (missing items block review)
-                </label>
-              </fieldset>
-              {current && <Findings findings={current.report.findings} stale={stale} />}
-              {draft && (
-                <section aria-labelledby="draft-details" className="draft-details">
-                  <h4 id="draft-details">About the latest suggestion</h4>
-                  <p>
-                    Drafted by:{' '}
-                    {draft.provider.is_fixture
-                      ? 'demo writing assistant (fixed sample output, not an AI model)'
-                      : `${draft.provider.adapter} (${draft.provider.model})`}
-                  </p>
-                  <p className="draft-meta">
-                    <StatusDot status="draft" />
-                    <HashChip hash={draft.template_sha256} />
-                  </p>
-                  {draft.uncertainties.length > 0 && (
-                    <>
-                      <p>What the draft is unsure about:</p>
-                      <ul>
-                        {draft.uncertainties.map((u) => (
-                          <li key={u}>{u}</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </section>
-              )}
+                <fieldset className="mode-toggle">
+                  <legend>Check mode</legend>
+                  <label>
+                    <input
+                      type="radio"
+                      name="mode"
+                      checked={mode === 'working'}
+                      onChange={() => setMode('working')}
+                    />{' '}
+                    Working draft (missing items are allowed and marked)
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="mode"
+                      checked={mode === 'reviewed'}
+                      onChange={() => setMode('reviewed')}
+                    />{' '}
+                    Review check (missing items block review)
+                  </label>
+                </fieldset>
+                {current && <Findings findings={current.report.findings} stale={stale} />}
+                {draft && (
+                  <section aria-labelledby="draft-details" className="draft-details">
+                    <h4 id="draft-details">About the latest suggestion</h4>
+                    <p>
+                      Drafted by:{' '}
+                      {draft.provider.is_fixture
+                        ? 'demo writing assistant (fixed sample output, not an AI model)'
+                        : `${draft.provider.adapter} (${draft.provider.model})`}
+                    </p>
+                    <p className="draft-meta">
+                      <StatusDot status="draft" />
+                      <HashChip hash={draft.template_sha256} />
+                    </p>
+                    {draft.uncertainties.length > 0 && (
+                      <>
+                        <p>What the draft is unsure about:</p>
+                        <ul>
+                          {draft.uncertainties.map((u) => (
+                            <li key={u}>{u}</li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </section>
+                )}
+              </details>
             </>
           )}
         </div>

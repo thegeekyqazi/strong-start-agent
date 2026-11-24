@@ -131,9 +131,9 @@ describe('Review page', () => {
   it('separates durable storage from synthetic evidence and fixture review', async () => {
     const h = hist({ store_is_fixture: false, store: { backend: 'postgres', durable: true } })
     render(<ReviewPage appClient={appClient} client={fake(h).client} />)
-    expect(await screen.findByText(/Durable PostgreSQL store/)).toHaveTextContent(
-      /Synthetic data and fixture reviewer labels still apply/,
-    )
+    fireEvent.click(await screen.findByText('Storage details'))
+    expect(screen.getByText(/Durable PostgreSQL store/)).toHaveTextContent(/survive an API restart/)
+    expect(screen.getByText(/Synthetic evidence/)).toBeVisible()
     expect(screen.queryByText(/lost on restart/)).not.toBeInTheDocument()
   })
 
@@ -237,13 +237,19 @@ describe('Review page', () => {
       docx_sha256: H('d'),
       audit_sha256: H('e'),
     }
+    const exportedQuestions: string[][] = []
     const { client } = fake(hist({}), {
-      exportAnswers: async (b) => ({ ok: true, data: b.mode === 'reviewed' ? blocked : ok }),
+      exportAnswers: async (b) => {
+        exportedQuestions.push(b.question_ids)
+        return { ok: true, data: b.mode === 'reviewed' ? blocked : ok }
+      },
     })
     render(<ReviewPage appClient={appClient} client={client} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Export reviewed (DOCX)' }))
     expect(await screen.findByText(/Reviewed export blocked/)).toBeInTheDocument()
     expect(screen.getByText(/The latest version is not approved/)).toBeInTheDocument()
+    expect(exportedQuestions[0]).toHaveLength(demoWorkspace.question_set.questions.length)
+    fireEvent.change(screen.getByLabelText('Answers to export'), { target: { value: 'question' } })
     fireEvent.click(screen.getByRole('button', { name: 'Export working draft (DOCX)' }))
     expect(await screen.findByRole('link', { name: 'Download DOCX' })).toHaveAttribute(
       'href',
@@ -253,6 +259,7 @@ describe('Review page', () => {
       'href',
       '/dl/exp-1/audit',
     )
+    expect(exportedQuestions[1]).toEqual(['mission-q1'])
   })
 
   it('shows reviewer suggestions as suggestions only', async () => {

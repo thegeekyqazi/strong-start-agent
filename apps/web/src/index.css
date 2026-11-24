@@ -470,6 +470,9 @@ tbody tr.selected {
   font-size: var(--text-xl);
   font-weight: 600;
 }
+.evidence-card h4::first-letter {
+  text-transform: uppercase;
+}
 .signal-name {
   font-weight: 600;
 }
@@ -645,6 +648,18 @@ tbody tr.selected {
 .slot-preview > p {
   margin: 0;
 }
+.draft-editor {
+  margin-top: var(--space-lg);
+  padding-block: var(--space-sm);
+}
+.draft-editor:has(> summary[hidden]) {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.draft-editor[open] .answer-toolbar {
+  margin-top: var(--space-md);
+}
 .draft-actions,
 .plan-actions,
 .save-version,
@@ -759,6 +774,12 @@ tbody tr.selected {
 .export h3 {
   flex-basis: 100%;
 }
+.export-scope {
+  display: grid;
+  gap: var(--space-2xs);
+  width: min(100%, 18rem);
+  margin-inline-end: var(--space-xs);
+}
 details {
   border-top: var(--rule-hair) solid var(--color-rule);
   padding-block: var(--space-xs);
@@ -799,6 +820,10 @@ summary {
   .ws-editor,
   .version-detail {
     padding: var(--space-md);
+  }
+  .ws-questions ol {
+    max-height: 13.5rem;
+    overflow-y: auto;
   }
   main > section > h2 {
     font-size: var(--text-2xl);

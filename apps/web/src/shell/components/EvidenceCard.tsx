@@ -25,7 +25,7 @@ export function EvidenceCard({
       aria-labelledby={headingId}
       tabIndex={-1}
     >
-      <h4 id={headingId}>{fact.metric_id}</h4>
+      <h4 id={headingId}>{fact.metric_id.replace(/[-_]/g, ' ')}</h4>
       <p className="fact-value">
         {fact.value === null ? 'Value: unknown' : fact.value}{' '}
         {fact.unit === null ? '(Unit: unknown)' : fact.unit}
@@ -37,20 +37,6 @@ export function EvidenceCard({
         <dd>{orUnknown(fact.population)}</dd>
         <dt>Reporting period</dt>
         <dd>{orUnknown(fact.reporting_period)}</dd>
-        <dt>Source</dt>
-        <dd>
-          {ref.source_id} (version {ref.source_version_id})
-        </dd>
-        <dt>Location</dt>
-        <dd>{orUnknown(ref.locator)}</dd>
-        <dt>Published</dt>
-        <dd>
-          {pub.status === 'known'
-            ? orUnknown(pub.value)
-            : pub.status === 'unknown'
-              ? 'unknown'
-              : 'not applicable'}
-        </dd>
       </dl>
       <ul className="signals">
         <li>
@@ -71,12 +57,20 @@ export function EvidenceCard({
           {PROVENANCE_LABEL[fact.provenance.provenance_class] ?? fact.provenance.provenance_class}
         </li>
       </ul>
-      {fact.provenance.note && (
-        <details>
-          <summary>About this data</summary>
-          <p>{fact.provenance.note}</p>
-        </details>
-      )}
+      <details>
+        <summary>Source details</summary>
+        <dl>
+          <dt>Source</dt>
+          <dd>
+            {ref.source_id} (version {ref.source_version_id})
+          </dd>
+          <dt>Location</dt>
+          <dd>{orUnknown(ref.locator)}</dd>
+          <dt>Published</dt>
+          <dd>{pub.status === 'known' ? orUnknown(pub.value) : pub.status.replaceAll('_', ' ')}</dd>
+        </dl>
+        {fact.provenance.note && <p>{fact.provenance.note}</p>}
+      </details>
     </article>
   )
 }

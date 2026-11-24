@@ -85,7 +85,10 @@ it('saves a version with the optimistic expected version and shows its server st
     expected_answer_version: 1,
   })
   await waitFor(() => expect(screen.getByText(/Latest saved: version 2/)).toBeInTheDocument())
-  expect(screen.getByRole('link', { name: 'Open in Review' })).toHaveAttribute('href', '#/review')
+  expect(screen.getByRole('link', { name: 'Open in Review' })).toHaveAttribute(
+    'href',
+    '#/review?question=mission-q1',
+  )
 })
 
 it('reports a concurrent save in plain language', async () => {

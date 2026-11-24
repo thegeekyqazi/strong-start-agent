@@ -66,6 +66,7 @@ def test_durable_approval_new_plan_after_api_restart_chromium_readback(data_db, 
                     pub["question_set_id"]
                 )
                 page.get_by_label("Question", exact=True).select_option(v["question_id"])
+                page.get_by_text("Storage details", exact=True).click()
                 page.get_by_text("Durable PostgreSQL store", exact=False).wait_for()
                 page.get_by_text("SYNTHETIC", exact=False).first.wait_for()
             finally:
