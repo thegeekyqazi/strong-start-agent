@@ -1,6 +1,6 @@
 # Design: Strong Start Agent
 
-The locked system. Every Hallmark run reads this first and pages share it. Change it on purpose; this file is the rule.
+The shared Strong Start visual system. [UI-001](docs/decisions/UI-001-presentation-workspace.md) adds a presentation overview and a compact shell for the workspace.
 
 ## System
 
@@ -47,10 +47,12 @@ The spacing scale, type scale, easings and durations are defined in `tokens.css`
 
 - Character: calm; brief state transitions only; reduced motion ends immediately.
 
-## Variants
+## Workspace presentation
 
-- Workflow console: a Lumen-informed dark operational surface may guide movement between existing stages. It uses the core Furrow tokens, carries no invented metrics, and never replaces route-level content or actions.
-- Public landing page: a product explanation using the same workflow console, blue forward actions and verified project capabilities only.
+- `apps/web/src/workspace-shell.css` sets the darker blue navigation and lighter canvas for the shared shell. Keep text labels on navigation and use the blue accent for the selected destination and primary sample entry.
+- The overview focuses on one labeled sample application. The three adjacent steps explain what to inspect in the working draft, evidence and review screens.
+- Drafting presents the original question, editable answer and evidence. A linked claim focuses its corresponding evidence card. Review pairs the exact saved text and check findings with the existing response controls.
+- The narrow layout moves navigation above the content and stacks the editor and review panels in reading order.
 
 ## Exports
 

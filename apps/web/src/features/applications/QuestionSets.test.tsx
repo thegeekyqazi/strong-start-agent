@@ -98,7 +98,7 @@ describe('Applications with a Dev B saved question set', () => {
     await screen.findByText('Draft answers', { exact: false })
     await screen.findByRole('option', { name: /Representative portal/ }) // picker loaded
     fireEvent.change(screen.getByLabelText('Questions from'), { target: { value: QS } })
-    expect(await screen.findByText(/saved, not reviewed or approved by Dev B/)).toBeInTheDocument()
+    expect(await screen.findByText(/Questions awaiting review/)).toBeInTheDocument()
     expect(asked).toEqual([null, QS])
     expect(
       screen.getByText(/Saved definition: The funder's counting method is not stated\./),

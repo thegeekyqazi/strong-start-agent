@@ -80,36 +80,47 @@ describe('App shell', () => {
 
   it('labels fixture mode conspicuously', async () => {
     render(<App load={async () => reachable(true, true)} />)
-    expect(await screen.findByRole('alert')).toHaveTextContent(/LOCAL FIXTURE MODE/)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Sample workspace · Fixture identity/,
+    )
   })
 
-  it('guides users through the existing grant workflow without replacing feature routes', async () => {
+  it('marks the current feature and keeps the other workspace routes reachable', () => {
     window.location.hash = '#/knowledge'
     render(<App load={() => new Promise<ApiState>(() => undefined)} />)
 
-    expect(
-      screen.getByRole('region', { name: 'How to move through Strong Start' }),
-    ).toHaveTextContent('Step 3 of 5')
-    expect(
-      screen.getByRole('link', { name: 'Go to Intake & Prefill in workflow' }),
-    ).toHaveAttribute('href', '#/automation')
-    expect(screen.getByRole('link', { name: 'Go to Applications in workflow' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Knowledge' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Intake & Prefill' })).toHaveAttribute(
+      'href',
+      '#/automation',
+    )
+    expect(screen.getByRole('link', { name: 'Applications' })).toHaveAttribute(
       'href',
       '#/applications',
     )
   })
 
-  it('opens with a product landing page that links into the existing workspace', async () => {
+  it('opens at the workspace overview with a labeled sample and direct entry', () => {
     window.location.hash = ''
     render(<App load={() => new Promise<ApiState>(() => undefined)} />)
 
-    expect(
-      screen.getByRole('heading', { name: /Build stronger grants with evidence/ }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open the workspace' })).toHaveAttribute(
+    expect(screen.getByRole('heading', { name: 'Grant workspace' })).toBeInTheDocument()
+    expect(screen.getByText('Sample data')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open sample application' })).toHaveAttribute(
       'href',
-      '#/funding',
+      '#/sample',
     )
-    expect(screen.queryByRole('navigation', { name: 'Features' })).not.toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Features' })).toBeInTheDocument()
+  })
+
+  it('links to the ordinary workspace when fixture mode is off', async () => {
+    window.location.hash = ''
+    render(<App load={async () => reachable(true)} />)
+
+    expect(await screen.findByRole('link', { name: 'Open Applications' })).toHaveAttribute(
+      'href',
+      '#/applications',
+    )
+    expect(screen.queryByRole('link', { name: 'Open sample application' })).not.toBeInTheDocument()
   })
 })

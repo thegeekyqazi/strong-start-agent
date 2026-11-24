@@ -19,7 +19,12 @@ export function EvidenceCard({
   const pub = ref.publication_date
   const headingId = `fact-${fact.fact_id}`
   return (
-    <article className="evidence-card" aria-labelledby={headingId}>
+    <article
+      id={`evidence-${fact.fact_id}`}
+      className="evidence-card"
+      aria-labelledby={headingId}
+      tabIndex={-1}
+    >
       <h4 id={headingId}>{fact.metric_id}</h4>
       <p className="fact-value">
         {fact.value === null ? 'Value: unknown' : fact.value}{' '}

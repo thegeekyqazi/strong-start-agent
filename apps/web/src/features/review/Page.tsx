@@ -68,13 +68,17 @@ export function ReviewPage({
   appClient = httpApplicationsClient,
   client = httpReviewClient,
   questionSets = httpQuestionSetClient,
+  sample = false,
+  initialQuestionId = null,
 }: {
   appClient?: ApplicationsClient
   client?: ReviewClient
   questionSets?: QuestionSetClient
+  sample?: boolean
+  initialQuestionId?: string | null
 }) {
   // C2b: the same explicit question-set choice as the Applications page (shared per tab).
-  const [qsId, setQsId] = useState<string | null>(loadSelectedQuestionSet)
+  const [qsId, setQsId] = useState<string | null>(() => (sample ? null : loadSelectedQuestionSet()))
   const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined)
   const [ws, setWs] = useState<ApplicationWorkspace | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -94,7 +98,12 @@ export function ReviewPage({
       if (r.ok) {
         setWs(r.data)
         setLoadError(null)
-        setQuestionId(r.data.question_set.questions[0]?.question_id ?? null)
+        const questions = r.data.question_set.questions
+        setQuestionId(
+          questions.find((q) => q.question_id === initialQuestionId)?.question_id ??
+            questions[0]?.question_id ??
+            null,
+        )
       } else {
         setWs(null)
         setHist(null)
@@ -104,7 +113,7 @@ export function ReviewPage({
     return () => {
       active = false
     }
-  }, [appClient, qsId])
+  }, [appClient, initialQuestionId, qsId])
 
   function chooseQuestionSet(id: string | null) {
     saveSelectedQuestionSet(id)
@@ -113,9 +122,10 @@ export function ReviewPage({
     setExported(null)
   }
 
-  const picker = (
+  const picker = !sample && (
     <QuestionSetPicker value={qsId} onChange={chooseQuestionSet} client={questionSets} />
   )
+  const title = sample ? 'Review sample answer' : 'Review'
 
   const reload = useCallback(async () => {
     if (!questionId) return
@@ -147,7 +157,7 @@ export function ReviewPage({
   if (loadedFor !== qsId || (!ws && !loadError))
     return (
       <section aria-labelledby="review-heading">
-        <h2 id="review-heading">Review</h2>
+        <h2 id="review-heading">{title}</h2>
         {picker}
         <p role="status">Loading reviews…</p>
       </section>
@@ -155,7 +165,7 @@ export function ReviewPage({
   if (loadError || !ws)
     return (
       <section aria-labelledby="review-heading">
-        <h2 id="review-heading">Review</h2>
+        <h2 id="review-heading">{title}</h2>
         {picker}
         <p role="alert">{loadError}</p>
         {qsId && (
@@ -167,7 +177,8 @@ export function ReviewPage({
     )
 
   const questions = [...ws.question_set.questions].sort((a, b) => a.order - b.order)
-  const versions = hist?.versions ?? []
+  const history = hist?.question_id === questionId ? hist : null
+  const versions = history?.versions ?? []
   const latest = versions.at(-1)
   const selected = versions.find((v) => v.answer_version_id === selectedId) ?? latest
   const previous = selected
@@ -230,47 +241,58 @@ export function ReviewPage({
   }
 
   return (
-    <section aria-labelledby="review-heading">
-      <h2 id="review-heading">Review</h2>
+    <section aria-labelledby="review-heading" className="review-page">
+      <h2 id="review-heading">{title}</h2>
       <p>
         Check exact answer versions, then approve or reject them. An approval covers one exact
         version; any edit or evidence change makes it out of date.
       </p>
-      {hist?.store?.durable && (
+      {sample && (
+        <div className="sample-review-context">
+          <span className="badge badge-planned">{ws.data_label}</span>
+          <a href={questionId ? `#/sample?question=${encodeURIComponent(questionId)}` : '#/sample'}>
+            Back to sample application
+          </a>
+        </div>
+      )}
+      {!sample && hist?.store?.durable && (
         <p className="badge badge-planned">
           Durable PostgreSQL store – saved C versions, approvals and exports survive API restart.
           Synthetic data and fixture reviewer labels still apply. Prepare a new Automation plan
           after restart.
         </p>
       )}
-      {(hist?.store?.backend === 'memory' || (!hist?.store && hist?.store_is_fixture)) && (
-        <p className="badge badge-planned">
-          FIXTURE store: saved versions and approvals are demo data and are lost on restart. Fixture
-          approval is not authentication.
-        </p>
-      )}
+      {!sample &&
+        (hist?.store?.backend === 'memory' || (!hist?.store && hist?.store_is_fixture)) && (
+          <p className="badge badge-planned">
+            FIXTURE store: saved versions and approvals are demo data and are lost on restart.
+            Fixture approval is not authentication.
+          </p>
+        )}
       {picker}
       {ws.question_set_ref && (
         <p className="hint">
           Questions from saved definition {ws.question_set_ref.definition_id}, version{' '}
-          {ws.question_set_ref.definition_version} (saved, not reviewed by Dev B).
+          {ws.question_set_ref.definition_version} · Questions awaiting review.
         </p>
       )}
-      <label htmlFor="review-question">Question</label>{' '}
-      <select
-        id="review-question"
-        value={questionId ?? ''}
-        onChange={(e) => {
-          setQuestionId(e.target.value)
-          setMessage(null)
-        }}
-      >
-        {questions.map((q) => (
-          <option key={q.question_id} value={q.question_id}>
-            {q.order}. {q.original_text}
-          </option>
-        ))}
-      </select>
+      <div className="review-question">
+        <label htmlFor="review-question">Question</label>
+        <select
+          id="review-question"
+          value={questionId ?? ''}
+          onChange={(e) => {
+            setQuestionId(e.target.value)
+            setMessage(null)
+          }}
+        >
+          {questions.map((q) => (
+            <option key={q.question_id} value={q.question_id}>
+              {q.order}. {q.original_text}
+            </option>
+          ))}
+        </select>
+      </div>
       {versions.length > 0 && (
         <p role="status" className="prefill">
           {hist?.prefill_ready
@@ -340,25 +362,76 @@ export function ReviewPage({
                 <HashChip hash={selected.content_sha256} />
                 <span className="hint">Saved by {selected.created_by}</span>
               </p>
-              <blockquote className="original-question">{selected.rendered.text}</blockquote>
+              <blockquote className="original-question review-answer">
+                {selected.rendered.text}
+              </blockquote>
               {previous && <Diff before={previous} after={selected} />}
 
-              <section aria-labelledby="checks-heading">
-                <h4 id="checks-heading">Checks (review mode)</h4>
-                {selected.check.findings.map((f, n) => (
-                  <FindingRow
-                    key={`${f.result.rule_id}-${n}`}
-                    origin="check"
-                    outcome={f.result.outcome}
-                    message={`${f.result.rule_id}: ${f.message}`}
-                    affectedText={f.affected_text ?? undefined}
-                    nextAction={f.next_action ?? undefined}
-                  />
-                ))}
-              </section>
+              <div className="review-assessment">
+                <section aria-labelledby="checks-heading">
+                  <h4 id="checks-heading">Checks (review mode)</h4>
+                  {selected.check.findings.map((f, n) => (
+                    <FindingRow
+                      key={`${f.result.rule_id}-${n}`}
+                      origin="check"
+                      outcome={f.result.outcome}
+                      message={`${f.result.rule_id}: ${f.message}`}
+                      affectedText={f.affected_text ?? undefined}
+                      nextAction={f.next_action ?? undefined}
+                    />
+                  ))}
+                </section>
+                <div className="review-controls">
+                  <section aria-labelledby="notes-heading">
+                    <h4 id="notes-heading">Notes</h4>
+                    <ul>
+                      {hist?.notes
+                        .filter((n) => n.answer_version_id === selected.answer_version_id)
+                        .map((n) => (
+                          <li key={n.note_id}>
+                            {n.author_id}: {n.text}
+                          </li>
+                        ))}
+                    </ul>
+                    <label htmlFor="review-note">Note or decision comment</label>
+                    <textarea
+                      id="review-note"
+                      rows={3}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                    <button type="button" onClick={addNote}>
+                      Add note
+                    </button>
+                  </section>
 
-              <section aria-labelledby="suggestions-heading">
-                <h4 id="suggestions-heading">Reviewer suggestions</h4>
+                  {selected.is_latest && !decided && (
+                    <section aria-labelledby="decide-heading" className="decide">
+                      <h4 id="decide-heading">Decision</h4>
+                      {reviewItems > 0 && (
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={ack}
+                            onChange={(e) => setAck(e.target.checked)}
+                          />{' '}
+                          I have read all {reviewItems} "Needs your review" items above.
+                        </label>
+                      )}
+                      <p>
+                        <button type="button" onClick={() => decide('approve')}>
+                          Approve this exact version ({selected.content_sha256.slice(0, 12)}…)
+                        </button>{' '}
+                        <button type="button" onClick={() => decide('reject')}>
+                          Reject
+                        </button>
+                      </p>
+                    </section>
+                  )}
+                </div>
+              </div>
+              <details className="review-suggestions">
+                <summary id="suggestions-heading">Reviewer suggestions</summary>
                 <p className="hint">Suggestions only; they cannot approve anything.</p>
                 <button type="button" onClick={() => ask('numerical_reviewer')}>
                   Ask the numbers reviewer
@@ -380,54 +453,7 @@ export function ReviewPage({
                       )),
                     )}
                 </ul>
-              </section>
-
-              <section aria-labelledby="notes-heading">
-                <h4 id="notes-heading">Notes</h4>
-                <ul>
-                  {hist?.notes
-                    .filter((n) => n.answer_version_id === selected.answer_version_id)
-                    .map((n) => (
-                      <li key={n.note_id}>
-                        {n.author_id}: {n.text}
-                      </li>
-                    ))}
-                </ul>
-                <label htmlFor="review-note">Note or decision comment</label>
-                <textarea
-                  id="review-note"
-                  rows={3}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-                <button type="button" onClick={addNote}>
-                  Add note
-                </button>
-              </section>
-
-              {selected.is_latest && !decided && (
-                <section aria-labelledby="decide-heading" className="decide">
-                  <h4 id="decide-heading">Decision</h4>
-                  {reviewItems > 0 && (
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={ack}
-                        onChange={(e) => setAck(e.target.checked)}
-                      />{' '}
-                      I have read all {reviewItems} "Needs your review" items above.
-                    </label>
-                  )}
-                  <p>
-                    <button type="button" onClick={() => decide('approve')}>
-                      Approve this exact version ({selected.content_sha256.slice(0, 12)}…)
-                    </button>{' '}
-                    <button type="button" onClick={() => decide('reject')}>
-                      Reject
-                    </button>
-                  </p>
-                </section>
-              )}
+              </details>
             </div>
           )}
         </div>
