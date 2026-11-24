@@ -68,7 +68,7 @@ def capabilities_for(settings: Settings) -> list[Capability]:
     return [
         Capability(
             feature=FEATURE,
-            owner="A1",
+            owner="A",
             status="fixture_only" if settings.fixture_mode else "available",
             detail=(
                 "Source/fact reads, local text/PDF ingestion and lexical retrieval "
