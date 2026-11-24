@@ -21,6 +21,7 @@ import { EvidencePanel, FindingList, InspectionView, QuestionTable } from './vie
 import { SavedDefinitions, type Preview } from './saved'
 import { clearIntakeReference, readIntakeReference } from './handoff'
 import { PrefillPanel } from './prefill'
+import { readApprovedSelection } from './approvedHandoff'
 import './automation.css'
 
 type Mode = IntakeSource['mode']
@@ -47,6 +48,7 @@ const CAP_LABEL: Record<string, string> = {
 export function AutomationPage() {
   const [avail, setAvail] = useState<Load<AutomationAvailability>>({ kind: 'loading' })
   const [handoffRef] = useState(readIntakeReference)
+  const [hasApprovedHandoff] = useState(() => readApprovedSelection() !== null)
   const [mode, setMode] = useState<Mode>(handoffRef ? 'capture' : 'fixture')
   const [fixtureId, setFixtureId] = useState('rep-portal-definition-v1')
   const [captureKey, setCaptureKey] = useState(handoffRef ?? '')
@@ -172,19 +174,19 @@ export function AutomationPage() {
   return (
     <section aria-labelledby="automation-heading" className="automation">
       <h2 id="automation-heading">Intake &amp; Prefill</h2>
-      <p className="badge badge-planned">
-        Intake, read-only inspection and selected-field fixture prefill. Integrated C3 entry is
-        unavailable; submission is staff-only.
+      <p>
+        Import application questions and prepare approved answers for the representative portal.
       </p>
+      {hasApprovedHandoff && <PrefillPanel />}
 
-      <section aria-labelledby="avail-heading" className="panel">
-        <h3 id="avail-heading">Availability</h3>
-        {avail.kind === 'loading' && <p role="status">Checking availability...</p>}
-        {avail.kind === 'error' && (
-          <p role="alert" className="badge badge-unavailable">
-            {avail.message}
-          </p>
-        )}
+      {avail.kind === 'loading' && <p role="status">Checking form services…</p>}
+      {avail.kind === 'error' && (
+        <p role="alert" className="badge badge-unavailable">
+          {avail.message}
+        </p>
+      )}
+      <details className="panel">
+        <summary>Form service details</summary>
         {a && (
           <>
             <ul className="cap-list">
@@ -205,7 +207,7 @@ export function AutomationPage() {
             )}
           </>
         )}
-      </section>
+      </details>
 
       <section aria-labelledby="import-heading" className="panel">
         <h3 id="import-heading">1. Import an application definition</h3>
@@ -366,7 +368,7 @@ export function AutomationPage() {
         </p>
       )}
       <SavedDefinitions preview={preview} />
-      <PrefillPanel />
+      {!hasApprovedHandoff && <PrefillPanel />}
 
       <section aria-labelledby="inspect-heading" className="panel">
         <h3 id="inspect-heading">3. Representative portal inspection (read-only)</h3>

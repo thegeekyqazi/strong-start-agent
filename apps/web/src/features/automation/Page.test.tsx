@@ -231,6 +231,7 @@ describe('AutomationPage', () => {
   it('shows granular availability and fixture mode', async () => {
     mockFetch(() => ({ status: 200, body: availability('installed_not_launched') }))
     render(<AutomationPage />)
+    fireEvent.click(screen.getByText('Form service details'))
     expect(await screen.findByText('automation.final_submission')).toBeInTheDocument()
     expect(screen.getByText('Fixture only')).toBeInTheDocument()
     expect(screen.getByText(/FIXTURE MODE/)).toBeInTheDocument()
